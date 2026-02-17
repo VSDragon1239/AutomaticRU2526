@@ -1,26 +1,10 @@
 ![Logo](github-pictures/logo-mgproject.png)
 
-#  MGProjectRU24 / MGSD2425
-
-> ⚠️ **ATTENTION: This repository is no longer maintained**
->
-> All current updates, new features, and development will be carried out in the new repository:
-> **[AutomaticRU2526](https://github.com/VSDragon1239/AutomaticRU2526)**
->
-> Please follow the link above for the latest versions and support.
-
-
-> ⚠️ **ВНИМАНИЕ: Данный репозиторий больше не поддерживается**
->
-> Все актуальные обновления, новые функции и разработки будут производиться в новом репозитории:
-> **[AutomaticRU2526](https://github.com/VSDragon1239/AutomaticRU2526)**
->
-> Пожалуйста, перейдите по ссылке выше для получения последних версий и поддержки.
-
+#  MGProjectRU / AutomaticRU2526
 
 ---
 
-**MGSD (Multi-Global System of Development)** - a Python-based modular platform for managing, building, and evolving **global projects** and complex development workflows.
+A Python-based modular platform for managing, building, and evolving **global projects** and complex development workflows.
 
 The system is designed as a long-term ecosystem rather than a single application.
 
@@ -58,7 +42,7 @@ MGSD acts as a **foundation layer** for applications, tools, research prototypes
 
 ## Описание (RU)
 
-**MGSD** - это модульная платформа на Python, предназначенная для сопровождения **глобальных проектов** - сложных систем, состоящих из множества модулей, инструментов и данных.
+Это модульная платформа на Python, предназначенная для сопровождения **глобальных проектов** - сложных систем, состоящих из множества модулей, инструментов и данных.
 
 Платформа предоставляет:
 - 📦 **Менеджер глобальных проектов**
@@ -74,7 +58,7 @@ MGSD - это не одно приложение, а **экосистема и �
 ## Repository Structure
 
 ```text
-MGSD2425/
+AutomaticRU2526/
 │
 ├─ .github/
 │  └─ workflows/
@@ -83,11 +67,14 @@ MGSD2425/
 ├─ .venv/                        # Python virtual environment (ignored by git)
 ├─ BackData/                     # Runtime data / backups (ignored)
 │
-├─ CompilerManager/              # Build & compilation management subsystem
-├─ MGPBrowser/                   # Project browsing / navigation tools
-├─ MGPCompiling/                 # Compilation pipelines and build logic
-├─ MGProjectRU25/                # Main Func projects manager
-├─ RecognizingRU24/              # Recognition / analysis subsystem
+├─ AutomaticRU2526               # Entry Point
+├─ WorkArchiveFiles              # Archive Data
+├─ WorkDataManager               # Work Data
+├─ WorkDiskManager               # Work Disk
+├─ WorkJSONFiles                 # Work Json Files
+├─ WorkMouseDesign               # Pony Pet or just Pet
+├─ WorkProjectManager            # Use Json Files in save projects data
+├─ WorkUserInterfaceManager      # User Qt Interface from PySide6
 │
 ├─ resources/                    # Shared resources (icons, configs, assets)
 ├─ TemplateProject/              # Core project logic
@@ -102,9 +89,7 @@ MGSD2425/
 ├─ requirements.txt              # GPL-safe Python dependencies
 ├─ requirements-commercial.txt   # Commercial-only dependencies
 │
-├─ main.spec                     # PyInstaller build specification
-├─ hook-vosk.py                  # Custom PyInstaller hook
-├─ rthook_vosk.py                # PyInstaller runtime hook
+├─ main.spec                     # PyInstaller build specification generate
 │
 └─ README.md                     # Project documentation
 
@@ -130,16 +115,16 @@ resources/
 ├─ audio/                     # Audio assets (sound effects, voice data, etc.)
 │
 ├─ img/                       # UI and visual assets
-│  ├─ mainimage.png
-│  ├─ background_image_1.gif
-│  ├─ button_image.png
-│  ├─ button_image_hover.png
-│  ├─ button_image_active.png
-│  ├─ icon_1.png
-│  ├─ icon_2.png
-│  ├─ icon_3.png
-│  ├─ icon_4.png
-│  ├─ img_vsd_1.png
+│  ├─ *.png
+│  ├─ *.gif
+│  ├─ *.png
+│  ├─ *.png
+│  ├─ *.png
+│  ├─ *.png
+│  ├─ *.png
+│  ├─ *.png
+│  ├─ *.png
+│  └─ *.png
 │
 └─ __init__.py
 ```
@@ -194,7 +179,7 @@ including acceptance of the **Contributor License Agreement (CLA)**.
 
 ## Related Projects
 
-MGSD may include or support independent projects and modules, such as:
+AutomaticRU2526 may include or support independent projects and modules, such as:
 
 * desktop applications,
 * automation tools,
