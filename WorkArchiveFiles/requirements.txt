@@ -1,0 +1,2 @@
+pywin32==311
+pyzipper==3.23.0
