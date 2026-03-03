@@ -6,7 +6,7 @@ from functools import partial
 from PySide6.QtCore import Qt, QDir, Signal
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QMainWindow, QListWidgetItem, QWidget, QFileSystemModel, QTreeView, QFileIconProvider, \
-    QVBoxLayout, QHBoxLayout, QPushButton, QLineEdit, QMenu, QInputDialog, QDialog
+    QVBoxLayout, QHBoxLayout, QPushButton, QLineEdit, QMenu, QInputDialog, QDialog, QListWidget
 
 from WorkMouseDesign.api import WorkMouseDesignApi
 from WorkUserInterfaceManager.App.DialogDataView import DialogDataView
@@ -141,6 +141,7 @@ class UiMainWindow(QMainWindow):
         self.widget_list_link = True
 
     def set_items_to_widget_list(self, data_list, widget_list):
+        widget_list.clear()
         self.logger.info(
             f"{get_logger_img('Загрузка')} - UiMainWindow - set_items_to_widget_list - Загрузка элементов из данных в список интерфейса: {data_list}")
         try:
@@ -283,6 +284,16 @@ class UiMainWindow(QMainWindow):
         self.logger.info(
             f"{get_logger_img('Возвращение')} - UiMainWindow - get_projects_in_global_project_widget_list - Возвращение listWidget")
         return self.ui.listWidget_4
+
+    def get_gp_projects_widget_label(self):
+        self.logger.info(
+            f"{get_logger_img('Возвращение')} - UiMainWindow - get_gp_projects_widget_label - Возвращение QL11114121_2")
+        return self.ui.QL11114121_2
+
+    def get_project_widget_label(self):
+        self.logger.info(
+            f"{get_logger_img('Возвращение')} - UiMainWindow - get_project_widget_label - Возвращение QL11114112")
+        return self.ui.QL11114112
 
     def get_project_data_widget_list(self):
         self.logger.info(

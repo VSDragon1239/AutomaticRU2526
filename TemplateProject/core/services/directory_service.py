@@ -1,4 +1,5 @@
 # Основные операции над путями
+import logging
 import os
 import re
 import shutil
@@ -19,6 +20,7 @@ import win32com.client
 
 class DirectoryService:
     def __init__(self, full_base_directory, starry_dir=False):
+        logging.getLogger("DirectoryService")
         self.base_directory = full_base_directory.replace("\\", "/")
         if not os.path.exists(self.base_directory):
             if starry_dir:
@@ -29,59 +31,242 @@ class DirectoryService:
     def open_file(self, exe_name: str):
         """
         Запускает .exe, расположенный в base_directory, по его имени.
-
-        :param exe_name: Имя исполняемого файла, например "MyApp.exe" или "MyApp".
         """
-        # гарантируем расширение
-        if not exe_name.lower().endswith(".exe") and not exe_name.lower().endswith(".lnk"):
-            # print("open_file", exe_name.lower().endswith(".lnk"))
+        logging.info(f"[🚀] FileService - open_file - Старт: exe_name='{exe_name}'")
+        logging.debug(f"[🔍] FileService - open_file - base_directory='{self.base_directory}'")
+
+        # 1) Нормализация имени файла
+        original_exe_name = exe_name
+        if not exe_name.lower().endswith((".exe", ".lnk")):
             exe_name += ".exe"
+            logging.debug(f"[✏️] FileService - open_file - Добавлено расширение: '{original_exe_name}' → '{exe_name}'")
 
-        # абсолютный путь к exe
+        # 2) Построение пути
         exe_path = os.path.join(self.base_directory, exe_name).replace("\\", "/")
+        logging.info(f"[📄] FileService - open_file - Итоговый путь: '{exe_path}'")
 
+        # 3) Проверка существования файла
         if not os.path.isfile(exe_path):
+            logging.error(f"[❌] FileService - open_file - Файл не найден: '{exe_path}'")
+            # Логируем содержимое директории для отладки
+            if os.path.isdir(self.base_directory):
+                files = os.listdir(self.base_directory)
+                logging.debug(
+                    f"[📋] FileService - open_file - Файлы в base_directory: {files[:10]}{'...' if len(files) > 10 else ''}")
             raise FileNotFoundError(f"Executable not found: {exe_path}")
+        else:
+            logging.debug(f"[✅] FileService - open_file - Файл существует, размер: {os.path.getsize(exe_path)} байт")
 
         try:
+            # 4) Обработка ярлыков (.lnk)
             if exe_path.lower().endswith(".lnk"):
-                # читаем содержимое ярлыка
-                pythoncom.CoInitialize()
-                shell_link = pythoncom.CoCreateInstance(
-                    shell.CLSID_ShellLink, None,
-                    pythoncom.CLSCTX_INPROC_SERVER, shell.IID_IShellLink
-                )
-                persist_file = shell_link.QueryInterface(pythoncom.IID_IPersistFile)
-                persist_file.Load(str(Path(exe_path)), 0)
-                target_path, _ = shell_link.GetPath(shell.SLGP_UNCPRIORITY)
+                logging.info(f"[🔗] FileService - open_file - Обработка ярлыка: '{exe_path}'")
 
-                # если целевой путь отсутствует, пробуем заменить диск
+                try:
+                    pythoncom.CoInitialize()
+                    logging.debug("[🔌] FileService - open_file - CoInitialize() выполнен")
+
+                    shell_link = pythoncom.CoCreateInstance(
+                        shell.CLSID_ShellLink, None,
+                        pythoncom.CLSCTX_INPROC_SERVER, shell.IID_IShellLink
+                    )
+                    logging.debug("[🔗] FileService - open_file - ShellLink создан")
+
+                    persist_file = shell_link.QueryInterface(pythoncom.IID_IPersistFile)
+                    logging.debug("[📁] FileService - open_file - IID_IPersistFile получен")
+
+                    persist_file.Load(str(Path(exe_path)), 0)
+                    logging.debug(f"[📥] FileService - open_file - Ярлык загружен: '{exe_path}'")
+
+                    target_path, _ = shell_link.GetPath(shell.SLGP_UNCPRIORITY)
+                    logging.info(f"[🎯] FileService - open_file - Цель ярлыка: '{target_path}'")
+
+                except Exception as e:
+                    logging.error(f"[❌] FileService - open_file - Ошибка при чтении ярлыка: {type(e).__name__}: {e}")
+                    raise
+
+                # 5) Проверка целевого пути ярлыка
                 if not os.path.isfile(target_path):
-                    old_drive = target_path[:2]  # например "C:"
+                    logging.warning(f"[⚠️] FileService - open_file - Цель ярлыка не найдена: '{target_path}'")
+
+                    old_drive = target_path[:2]
                     new_drive = os.path.splitdrive(self.base_directory)[0]
+                    logging.debug(f"[🔄] FileService - open_file - Попытка замены диска: '{old_drive}' → '{new_drive}'")
+
+                    if old_drive.upper() != new_drive.upper():
+                        fixed_target = target_path.replace(old_drive, new_drive, 1)
+                        logging.debug(f"[🔍] FileService - open_file - Проверка исправленного пути: '{fixed_target}'")
+
+                        if os.path.isfile(fixed_target):
+                            logging.info(
+                                f"[✅] FileService - open_file - Путь исправлен: '{target_path}' → '{fixed_target}'")
+                            target_path = fixed_target
+                        else:
+                            logging.error(
+                                f"[❌] FileService - open_file - Исправленный путь тоже не найден: '{fixed_target}'")
+                    else:
+                        logging.debug(f"[ℹ️] FileService - open_file - Диски совпадают, замена не требуется")
+
+                if not os.path.isfile(target_path):
+                    logging.error(
+                        f"[❌] FileService - open_file - Критическая ошибка: целевой файл ярлыка не найден: '{target_path}'")
+                    raise FileNotFoundError(f"Target from shortcut not found: {target_path}")
+
+                # 6) Запуск целевого файла из ярлыка
+                cwd = os.path.dirname(target_path)
+                logging.info(f"[🚀] FileService - open_file - Запуск через subprocess: '{target_path}', cwd='{cwd}'")
+                try:
+                    proc = subprocess.Popen([target_path], cwd=cwd)
+                    logging.info(f"[✅] FileService - open_file - Процесс запущен, PID={proc.pid}")
+                except Exception as e:
+                    logging.error(f"[❌] FileService - open_file - Ошибка subprocess.Popen: {type(e).__name__}: {e}")
+                    raise
+
+            else:
+                # 7) Запуск обычного .exe
+                logging.info(f"[🚀] FileService - open_file - Запуск обычного exe через os.startfile: '{exe_path}'")
+                try:
+                    os.startfile(exe_path)
+                    logging.info(f"[✅] FileService - open_file - os.startfile выполнен успешно")
+                except Exception as e:
+                    logging.error(f"[❌] FileService - open_file - Ошибка os.startfile: {type(e).__name__}: {e}")
+                    raise
+
+        except OSError as e:
+            winerror = getattr(e, 'winerror', 0)
+            if winerror == 1223:
+                logging.warning(
+                    f"[⚠️] FileService - open_file - Запуск отменён пользователем (ERROR_CANCELLED/1223): '{exe_path}'")
+            else:
+                logging.error(f"[❌] FileService - open_file - OSError (winerror={winerror}): {e}")
+                raise
+        except Exception as e:
+            logging.error(f"[💥] FileService - open_file - Неожиданная ошибка: {type(e).__name__}: {e}")
+            raise
+
+        logging.info(f"[🏁] FileService - open_file - Успешное завершение, возвращаем путь: '{exe_path}'")
+        return exe_path
+
+    def open_full_path_file(self, exe_path: str):
+        """
+        Запускает .exe или .lnk по полному пути.
+        Автоматически пробует расширения: (нет) -> .exe -> .lnk -> .exe.lnk
+        """
+        logging.info(f"[🚀] FileService - open_full_path_file - Старт: input='{exe_path}'")
+
+        # 1) Список вариантов путей для проверки
+        # Мы не меняем исходную строку сразу, а проверяем гипотезы
+        possible_extensions = ["", ".exe", ".lnk", ".exe.lnk"]
+        found_path = None
+
+        # Очищаем путь от лишних слэшей для корректной проверки
+        base_path = exe_path.strip().replace("\\", "/")
+
+        # Если пользователь явно передал расширение, проверяем его в первую очередь
+        lower_path = base_path.lower()
+        if lower_path.endswith(".exe") or lower_path.endswith(".lnk"):
+            # Если расширение уже есть, проверяем сначала как есть
+            priorities = [base_path]
+            # Добавляем .lnk только если сейчас .exe (случай "file.exe" -> "file.exe.lnk")
+            if lower_path.endswith(".exe"):
+                priorities.append(base_path + ".lnk")
+        else:
+            # Если расширения нет, перебираем все варианты
+            priorities = [base_path + ext for ext in possible_extensions]
+
+        # 2) Поиск существующего файла
+        for path_variant in priorities:
+            if os.path.isfile(path_variant):
+                found_path = path_variant
+                logging.debug(f"[✅] FileService - open_full_path_file - Найдено совпадение: '{found_path}'")
+                break
+            else:
+                logging.debug(f"[🔍] FileService - open_full_path_file - Не найдено: '{path_variant}'")
+
+        # 3) Если ничего не найдено
+        if not found_path:
+            logging.error(f"[❌] FileService - open_full_path_file - Файл не найден ни в одном из вариантов")
+            # Логируем содержимое папки для отладки
+            dir_path = os.path.dirname(base_path)
+            if os.path.isdir(dir_path):
+                files = os.listdir(dir_path)
+                # Ищем похожие имена
+                similar = [f for f in files if os.path.basename(base_path).split('.')[0] in f]
+                if similar:
+                    logging.warning(f"[💡] FileService - open_full_path_file - Похожие файлы в папке: {similar}")
+            raise FileNotFoundError(f"Executable not found: {exe_path}")
+
+        logging.info(f"[📄] FileService - open_full_path_file - Итоговый путь: '{found_path}'")
+
+        try:
+            # 4) Обработка ярлыков (.lnk)
+            if found_path.lower().endswith(".lnk"):
+                logging.info(f"[🔗] FileService - open_full_path_file - Обработка ярлыка: '{found_path}'")
+
+                try:
+                    pythoncom.CoInitialize()
+                    shell_link = pythoncom.CoCreateInstance(
+                        shell.CLSID_ShellLink, None,
+                        pythoncom.CLSCTX_INPROC_SERVER, shell.IID_IShellLink
+                    )
+                    persist_file = shell_link.QueryInterface(pythoncom.IID_IPersistFile)
+                    persist_file.Load(str(Path(found_path)), 0)
+                    target_path, _ = shell_link.GetPath(shell.SLGP_UNCPRIORITY)
+                    logging.info(f"[🎯] FileService - open_full_path_file - Цель ярлыка: '{target_path}'")
+                except Exception as e:
+                    logging.error(
+                        f"[❌] FileService - open_full_path_file - Ошибка чтения ярлыка: {type(e).__name__}: {e}")
+                    raise
+
+                # 5) Проверка и исправление пути ярлыка (смена диска)
+                if not os.path.isfile(target_path):
+                    logging.warning(f"[⚠️] FileService - open_full_path_file - Цель ярлыка не найдена: '{target_path}'")
+
+                    old_drive = target_path[:2]
+                    new_drive = os.path.splitdrive(found_path)[0]
+                    logging.debug(
+                        f"[🔄] FileService - open_full_path_file - Попытка замены диска: '{old_drive}' → '{new_drive}'")
+
                     if old_drive.upper() != new_drive.upper():
                         fixed_target = target_path.replace(old_drive, new_drive, 1)
                         if os.path.isfile(fixed_target):
-                            print(f"🔁 Исправлен путь ярлыка: {target_path} → {fixed_target}")
+                            logging.info(
+                                f"[✅] FileService - open_full_path_file - Путь исправлен: '{target_path}' → '{fixed_target}'")
                             target_path = fixed_target
+                        else:
+                            logging.error(
+                                f"[❌] FileService - open_full_path_file - Исправленный путь не найден: '{fixed_target}'")
 
-                # запускаем путь назначения (исправленный или оригинальный)
                 if not os.path.isfile(target_path):
+                    logging.error(
+                        f"[❌] FileService - open_full_path_file - Целевой файл ярлыка не найден: '{target_path}'")
                     raise FileNotFoundError(f"Target from shortcut not found: {target_path}")
 
-                subprocess.Popen([target_path], cwd=os.path.dirname(target_path))
+                # 6) Запуск целевого файла
+                cwd = os.path.dirname(target_path)
+                logging.info(f"[🚀] FileService - open_full_path_file - Запуск: '{target_path}', cwd='{cwd}'")
+                proc = subprocess.Popen([target_path], cwd=cwd)
+                logging.info(f"[✅] FileService - open_full_path_file - Процесс запущен, PID={proc.pid}")
 
             else:
-                # обычный exe
-                os.startfile(exe_path)
+                # 7) Запуск обычного exe
+                logging.info(f"[🚀] FileService - open_full_path_file - Запуск через os.startfile: '{found_path}'")
+                os.startfile(found_path)
+                logging.info(f"[✅] FileService - open_full_path_file - os.startfile выполнен")
 
         except OSError as e:
-            if getattr(e, 'winerror', 0) == 1223:
-                print(f"⚠️ Запуск отменён пользователем или системой: {exe_path}")
+            winerror = getattr(e, 'winerror', 0)
+            if winerror == 1223:
+                logging.warning(f"[⚠️] FileService - open_full_path_file - Запуск отменён (1223): '{found_path}'")
             else:
+                logging.error(f"[❌] FileService - open_full_path_file - OSError (winerror={winerror}): {e}")
                 raise
+        except Exception as e:
+            logging.error(f"[💥] FileService - open_full_path_file - Неожиданная ошибка: {type(e).__name__}: {e}")
+            raise
 
-        return exe_path
+        logging.info(f"[🏁] FileService - open_full_path_file - Успешное завершение: '{found_path}'")
+        return found_path
 
     def list_files(self, extension_filter: str | None = None, directory: str | None = None) -> list[str]:
         """
@@ -341,12 +526,24 @@ class DirectoryService:
                     zf.write(full_path, arcname=rel_path)
 
     def openFolder(self, sub_dir_name: str):
+        logging.info(
+            f"[📁] - DirectoryService - openFolder - Начало -> Открытие директории")
+
+        logging.info(
+            f"[📁] - DirectoryService - openFolder - Состав директорий -> {self.base_directory, sub_dir_name}")
         # 1) абсолютный путь
         folder_path = os.path.abspath(os.path.join(self.base_directory, sub_dir_name))
-
+        logging.info(
+            f"[📁] - DirectoryService - openFolder - Итоговая директория -> {folder_path}")
+        logging.info(
+            f"[📁] - DirectoryService - openFolder - Запуск сложного процесса COM и Shell")
         # 2) инициализируем COM и получаем интерфейс Shell
-        pythoncom.CoInitialize()
-        shell = win32com.client.Dispatch("Shell.Application")
+        try:
+            pythoncom.CoInitialize()
+            shell = win32com.client.Dispatch("Shell.Application")
+        except Exception as e:
+            logging.error(f"[❌] Ошибка инициализации COM: {e}")
+            return
 
         # 3) пробуем найти уже открытое окно на эту папку
         for win in shell.Windows():
@@ -356,6 +553,7 @@ class DirectoryService:
                 continue
             if os.path.normcase(path) == os.path.normcase(folder_path):
                 hwnd = win.HWND
+                logging.info(f"[📁] Найдено открытое окно HWND: {hwnd}")
                 # разворачиваем и ставим на передний план
                 win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
                 win32gui.ShowWindow(hwnd, win32con.SW_MAXIMIZE)
@@ -370,7 +568,8 @@ class DirectoryService:
         for win in shell.Windows():
             try:
                 path = win.Document.Folder.Self.Path
-            except Exception:
+            except Exception as e:
+                logging.debug(f"[⚠️] Пропуск окна при проверке: {e}")
                 continue
             if os.path.normcase(path) == os.path.normcase(folder_path):
                 hwnd = win.HWND
@@ -378,4 +577,6 @@ class DirectoryService:
                 win32gui.ShowWindow(hwnd, win32con.SW_MAXIMIZE)
                 win32gui.SetForegroundWindow(hwnd)
                 break
+        logging.info(
+            f"[✅📁] - DirectoryService - openFolder - Успешное завершение сложного процесса COM и Shell")
 

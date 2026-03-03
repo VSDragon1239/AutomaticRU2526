@@ -35,7 +35,7 @@ def system_tool(type_tool, main_path, load_exe_path, icon_ico_path) -> list:
             logging.info(f"[!!][if⏳else] - vm_new_application - system_tool - Повтор Цикла...")
 
 
-def system_tool_load(type_tool, main_path, sub_path, sub_sub_path) -> list:
+def system_tool_load(type_tool, main_path, sub_path, sub_sub_path, item_data="") -> list:
     if sub_path == int or sub_sub_path == int:
         return []
     logging.getLogger("system_tool_load")
@@ -52,4 +52,12 @@ def system_tool_load(type_tool, main_path, sub_path, sub_sub_path) -> list:
     elif type_tool == 'start_project':
         logging.info(f"[!!] - system_tool_load - load_project - Условно -> start_project")
         DSApplicationService.openFolder("")
-    raise TypeError("Такого инструмента нет!")
+    elif type_tool == 'start_project_sub_dir':
+        logging.info(f"[!!] - system_tool_load - _start_project_sub_dir - Условно -> start_project_sub_dir {item_data}")
+        DSApplicationService.openFolder(f"{item_data}")
+    elif type_tool == 'start_application':
+        logging.info(f"[!!] - system_tool_load - _start_application - Условно -> start_application {item_data}")
+        DSApplicationService.open_full_path_file(f"{item_data}")
+        logging.info(f"[!!] - system_tool_load - _start_application - Успех!")
+    else:
+        raise TypeError("Такого инструмента нет!")

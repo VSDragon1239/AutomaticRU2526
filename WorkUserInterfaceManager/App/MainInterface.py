@@ -1,6 +1,6 @@
 import logging
 
-from PySide6.QtCore import Slot
+from PySide6.QtCore import Slot, Qt
 
 from WorkUserInterfaceManager.App.MainInterfaceModel import MIModel
 from WorkUserInterfaceManager.App.Tools.LoggingCustom import get_logger_img
@@ -58,7 +58,8 @@ class MainInterfaceViewModel(MainInterfaceView):
         data_list: list = self.UiMainWindow.get_dialog_data("Приложение", count_data=5)
         self.logger.info(f"[if⏳else]  -  MainInterfaceViewModel  -  vm_new_application  - Условие {data_list}")
         if data_list is not None and len(data_list) == 5:
-            self.logger.info(f"[if⏳else][!!]  -  MainInterfaceViewModel  -  vm_new_application  -  Истина - Установка путей")
+            self.logger.info(
+                f"[if⏳else][!!]  -  MainInterfaceViewModel  -  vm_new_application  -  Истина - Установка путей")
             new_paths = system_tool("new_app", self.get_data_path("MainAppSystemLinksPath"), data_list[3], data_list[4])
             link_path = new_paths[0] + new_paths[1][0]
             icon_path = new_paths[0] + new_paths[1][1]
@@ -119,9 +120,17 @@ class MainInterfaceViewModelLinkData(MainInterfaceViewModel):
         self.iPM.load_projects_data(globalProjectID)
         self.logger.info(
             "[if!!else] - MainInterfaceViewModelLinkData - load_projects_in_global_project_data_from_model - Условие - get_projects_in_global_project_items_list")
+        widget = self.UiMainWindow.get_projects_in_global_project_widget_list()
+        label = self.UiMainWindow.get_gp_projects_widget_label()
+        label.setText(
+            f"         Список проектов {self.iPM.get_global_project_data(globalProjectID)['dataGlobalProject']['GlobalProjectName']}         ")
+        widget.clear()
+        widget = self.UiMainWindow.get_project_data_widget_list()
+        widget.clear()
+        label = self.UiMainWindow.get_project_widget_label()
+        label.setText(f"Текущий проект не открыт...")
+
         if self.get_projects_in_global_project_items_list():
-            widget = self.UiMainWindow.get_projects_in_global_project_widget_list()
-            widget.clear()
             self.logger.info(
                 "[🡻][if!!else] - MainInterfaceViewModelLinkData - load_projects_in_global_project_data_from_model - Истина - Установка полученных Проектов в виджет...")
             self.UiMainWindow.set_items_to_widget_list(self.get_projects_in_global_project_items_list(),
@@ -138,6 +147,8 @@ class MainInterfaceViewModelLinkData(MainInterfaceViewModel):
         self.iPM.get_project_data(projectID)
         widget = self.UiMainWindow.get_project_data_widget_list()
         widget.clear()
+        label = self.UiMainWindow.get_project_widget_label()
+        label.setText(f"{self.iPM.get_project_data(projectID)['dataGlobalProjectProject']['ProjectName']}")
         gp = self.iPM.currentGlobalProject
         gpp = self.iPM.currentProject
         list_data: list = system_tool_load("load_project", self.get_data_path("MainGlobalProjectsPath"), gp, gpp)
@@ -145,8 +156,30 @@ class MainInterfaceViewModelLinkData(MainInterfaceViewModel):
 
     def _start_project(self):
         self.logger.info(
-            f"[!!]  -  MainInterfaceViewModel  -  vm_start_project  -  : Запуск проекта...")
-        system_tool_load("start_project", self.get_data_path("MainGlobalProjectsPath"), self.iPM.currentGlobalProject, self.iPM.currentProject)
+            f"[!!]  -  MainInterfaceViewModel  -  _start_project  -  : Запуск проекта...")
+        system_tool_load("start_project", self.get_data_path("MainGlobalProjectsPath"), self.iPM.currentGlobalProject,
+                         self.iPM.currentProject)
+
+    def _start_project_sub_dir(self, item):
+        self.logger.info(
+            f"[!!]  -  MainInterfaceViewModel  -  _start_project_sub_dir  -  : Запуск папки проекта...")
+        system_tool_load("start_project_sub_dir", self.get_data_path("MainGlobalProjectsPath"), self.iPM.currentGlobalProject,
+                         self.iPM.currentProject, item.text()[4:])
+
+    def _start_application(self, item):
+        self.logger.info(
+            f"[!!]  -  MainInterfaceViewModel  -  _start_application  -  : Запуск приложения...")
+        try:
+            app_data = item.data(Qt.UserRole)["ApplicationAppPath"]
+            self.logger.info(
+                f"[!!]  -  MainInterfaceViewModel  -  _start_application  -  : Данные приложения - {app_data}")
+            result_test = system_tool_load("start_application", self.get_data_path("MainAppSystemLinksPath"), 0,
+                                           0, app_data)
+            self.logger.info(
+                f"[✅]  -  MainInterfaceViewModel  -  _start_application  -  : Приложение успешно запущено! {result_test}")
+        except Exception as e:
+            self.logger.info(
+                f"[✲✲✲]  -  MainInterfaceViewModel  -  _start_application  -  : Данные ошибки - {e}")
 
     def link_model_data_to_interface_button(self):
         self.logger.info(
@@ -158,6 +191,11 @@ class MainInterfaceViewModelLinkData(MainInterfaceViewModel):
         self.UiMainWindow.get_button_save_data().clicked.connect(self.iPM.save_all_data)
         self.UiMainWindow.get_button_start_project().clicked.connect(self._start_project)
 
+        widget_list_project = self.UiMainWindow.get_project_data_widget_list()
+        widget_list_project.itemDoubleClicked.connect(self._start_project_sub_dir)
+        widget_list_applica = self.UiMainWindow.get_applications_widget_list()
+        widget_list_applica.itemDoubleClicked.connect(self._start_application)
+
     def link_signals(self):
         """
         Пользовательские сигналы
@@ -168,9 +206,12 @@ class MainInterfaceViewModelLinkData(MainInterfaceViewModel):
         self.UiMainWindow.listUpdateSelectGlobalProjectSignal.connect(
             self.load_projects_in_global_project_data_from_model)
         self.UiMainWindow.listUpdateSelectProjectSignal.connect(self.load_project_data)
-        self.UiMainWindow.listContextListWidgetCreateSignal.connect(lambda: self.logger.info("[✅] - MainInterfaceViewModelLinkData - link_signals - Вызов listContextListWidgetCreateSignal"))
-        self.UiMainWindow.listContextListWidgetEditSignal.connect(lambda: self.logger.info("[✅] - MainInterfaceViewModelLinkData - link_signals - Вызов listContextListWidgetEditSignal"))
-        self.UiMainWindow.listContextListWidgetDeleteSignal.connect(lambda: self.logger.info("[✅] - MainInterfaceViewModelLinkData - link_signals - Вызов listContextListWidgetDeleteSignal"))
+        self.UiMainWindow.listContextListWidgetCreateSignal.connect(lambda: self.logger.info(
+            "[✅] - MainInterfaceViewModelLinkData - link_signals - Вызов listContextListWidgetCreateSignal"))
+        self.UiMainWindow.listContextListWidgetEditSignal.connect(lambda: self.logger.info(
+            "[✅] - MainInterfaceViewModelLinkData - link_signals - Вызов listContextListWidgetEditSignal"))
+        self.UiMainWindow.listContextListWidgetDeleteSignal.connect(lambda: self.logger.info(
+            "[✅] - MainInterfaceViewModelLinkData - link_signals - Вызов listContextListWidgetDeleteSignal"))
 
     def all_links(self):
         self.logger.info(
