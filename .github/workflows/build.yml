@@ -52,11 +52,19 @@ jobs:
           name: MyApp-Windows
           path: ./release-artifacts
 
+      # --- НОВЫЙ ШАГ: Упаковка в архив ---
+      - name: Zip the build folder
+        run: |
+          cd release-artifacts
+          # Упаковываем содержимое папки в архив MyApp-Windows.zip
+          zip -r ../MyApp-Windows.zip .
+
       - name: Create Pre-release (beta tag)
         if: contains(github.ref, '-beta')
         uses: softprops/action-gh-release@v2
         with:
-          files: ./release-artifacts/**
+          # Загружаем только один созданный архив
+          files: ../MyApp-Windows.zip
           generate_release_notes: true
           prerelease: true
 
@@ -64,6 +72,6 @@ jobs:
         if: ${{ !contains(github.ref, '-beta') }}
         uses: softprops/action-gh-release@v2
         with:
-          files: ./release-artifacts/**
+          files: ../MyApp-Windows.zip
           generate_release_notes: true
           prerelease: false
