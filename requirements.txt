@@ -11,7 +11,7 @@ numpy~=1.26.2
 #sounddevice==0.5.2
 #pydub==0.25.1
 #vosk==0.3.45
-#av==14.4.0
+av==14.4.0
 
 # Vision / Capture
 #opencv-python==4.12.0.88
