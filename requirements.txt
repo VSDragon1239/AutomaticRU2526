@@ -57,5 +57,5 @@ bcrypt~=5.0.0
 pyotp~=2.9.0
 qrcode~=8.2
 pyserial~=3.5
-uniproject~=1.0.0
+#uniproject~=1.0.0
 SQLAlchemy~=2.0.47
