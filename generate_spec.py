@@ -9,6 +9,9 @@ def get_project_data_paths(project_dir, exclude_dirs=None, valid_extensions=None
     if exclude_dirs is None:
         exclude_dirs = ['__pycache__', 'build', 'dist', 'venv', 'ui_compiled']
     if valid_extensions is None:
+        # Примечание: .py файлы обычно не нужно добавлять в datas,
+        # PyInstaller сам их находит и упаковывает.
+        # Если вы добавляете их принудительно, они будут лежать рядом с exe в открытом виде.
         valid_extensions = ['.py', '.ui', '.qrc']
 
     data_paths = []
@@ -18,6 +21,13 @@ def get_project_data_paths(project_dir, exclude_dirs=None, valid_extensions=None
             ext = os.path.splitext(fn)[1].lower()
             if ext in valid_extensions:
                 abs_path = os.path.join(root, fn)
+
+                # --- ВАЖНОЕ ИСПРАВЛЕНИЕ ---
+                # Пропускаем пустые файлы (0 байт), чтобы избежать ошибки
+                # "size must be greater than or equal to 1" при создании Release.
+                if os.path.getsize(abs_path) == 0:
+                    continue
+
                 rel_path = os.path.relpath(root, project_dir).replace("\\", "/")
                 data_paths.append((abs_path.replace("\\", "/"), rel_path))
     return data_paths
@@ -36,8 +46,12 @@ def generate_spec(project_dirs=None, main_script="manage.py", onefile=False, out
     data_entries = ",\n        ".join(entries)
 
     main_script_clean = main_script.replace("\\", "/")
-    pathex_list = [p.replace("\\", "/") for p in project_dirs]
+    # Безопасное формирование списка путей
+    pathex_list = [p.replace("\\", "/") for p in project_dirs] if project_dirs else []
 
+    # ----------------------------------------------------------------
+    # РЕЖИМ ONEFILE (Один файл)
+    # ----------------------------------------------------------------
     if onefile:
         spec_content = f"""# -*- mode: python ; coding: utf-8 -*-
 import os
@@ -74,6 +88,9 @@ exe = EXE(
     console=False,
 )
 """
+    # ----------------------------------------------------------------
+    # РЕЖИМ ONEDIR (Папка с проектом) - Срабатывает, если onefile=False
+    # ----------------------------------------------------------------
     else:
         spec_content = f"""# -*- mode: python ; coding: utf-8 -*-
 import os
@@ -99,8 +116,8 @@ pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 exe = EXE(
     pyz,
     a.scripts,
-    [],
-    exclude_binaries=True,
+    [],       # Бинарники исключаем из EXE
+    exclude_binaries=True,  # Важно для режима папки
     name='MyApp',
     debug=False,
     bootloader_ignore_signals=False,
@@ -116,7 +133,8 @@ coll = COLLECT(
     a.datas,
     strip=False,
     upx=True,
-    name='MyApp',
+    upx_exclude=[],
+    name='MyApp',  # Имя папки в dist/
 )
 """
     with open(output_file, "w", encoding="utf-8") as f:
