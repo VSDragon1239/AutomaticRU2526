@@ -1,4 +1,5 @@
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QLineEdit, QDialogButtonBox, QPushButton
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QLineEdit, QDialogButtonBox, QPushButton, QFileDialog, \
+    QHBoxLayout
 
 
 class DialogDataView(QDialog):
@@ -44,26 +45,37 @@ class DialogDataView(QDialog):
                 raise ValueError("Указанное количество не зарегистрировано! Используйте от 1 до 3! ")
         elif self.count_data == 5:
             # """app_name, app_type, app_desc, app_path, icon_path"""
-            self.resize(500, 300)
-            self.layout.addWidget(QLabel(f"Введите название:"))
-            self.NameEdit = QLineEdit(self)
-            self.layout.addWidget(self.NameEdit)
+            self.resize(550, 350)
 
-            self.layout.addWidget(QLabel(f"Введите тип (Не используется):"))
-            self.TypeEdit = QLineEdit(self)
-            self.layout.addWidget(self.TypeEdit)
+            self._add_field("Введите название:", "NameEdit")
+            self._add_field("Введите тип (Не используется):", "TypeEdit")
+            self._add_field("Введите Описание...", "DescriptionEdit")
 
-            self.layout.addWidget(QLabel(f"Введите Описание..."))
-            self.DescriptionEdit = QLineEdit(self)
-            self.layout.addWidget(self.DescriptionEdit)
-
-            self.layout.addWidget(QLabel(f"Введите путь к .exe файлу..."))
+            # Поле EXE с кнопкой
+            self.layout.addWidget(QLabel("Введите путь к .exe файлу:"))
+            exe_layout = QHBoxLayout()
             self.ExePathEdit = QLineEdit(self)
-            self.layout.addWidget(self.ExePathEdit)
+            self.ExePathEdit.setPlaceholderText("Например: C:/Projects/App.exe")
+            exe_layout.addWidget(self.ExePathEdit)
 
-            self.layout.addWidget(QLabel(f"Введите путь к .ico файлу..."))
+            self.ExeBrowseBtn = QPushButton("📁 Обзор...")
+            self.ExeBrowseBtn.setFixedWidth(100)
+            self.ExeBrowseBtn.clicked.connect(self._browse_exe)
+            exe_layout.addWidget(self.ExeBrowseBtn)
+            self.layout.addLayout(exe_layout)
+
+            # Поле ICO с кнопкой
+            self.layout.addWidget(QLabel("Введите путь к .ico файлу:"))
+            ico_layout = QHBoxLayout()
             self.IcoPathEdit = QLineEdit(self)
-            self.layout.addWidget(self.IcoPathEdit)
+            self.IcoPathEdit.setPlaceholderText("Необязательно: C:/Icons/App.ico")
+            ico_layout.addWidget(self.IcoPathEdit)
+
+            self.IcoBrowseBtn = QPushButton("📁 Обзор...")
+            self.IcoBrowseBtn.setFixedWidth(100)
+            self.IcoBrowseBtn.clicked.connect(self._browse_ico)
+            ico_layout.addWidget(self.IcoBrowseBtn)
+            self.layout.addLayout(ico_layout)
 
         # Кнопки OK / Cancel
         buttons = QDialogButtonBox(
@@ -76,6 +88,35 @@ class DialogDataView(QDialog):
         # button1 = QPushButton("Проверка данных")
         # button1.clicked.connect(self.print_gn)
         # self.layout.addWidget(button1)
+
+    def _add_field(self, label_text, attr_name):
+        """Вспомогательный метод для создания полей ввода"""
+        self.layout.addWidget(QLabel(label_text))
+        edit = QLineEdit(self)
+        setattr(self, attr_name, edit)
+        self.layout.addWidget(edit)
+
+    def _browse_exe(self):
+        """Открывает диалог выбора .exe файла"""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Выберите исполняемый файл",
+            "",
+            "Исполняемые файлы (*.exe);;Ярлыки (*.lnk);;Все файлы (*.*)"
+        )
+        if file_path:
+            self.ExePathEdit.setText(file_path.replace("\\", "/"))
+
+    def _browse_ico(self):
+        """Открывает диалог выбора .ico файла"""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Выберите файл иконки",
+            "",
+            "Файлы иконок (*.ico);;Все файлы (*.*)"
+        )
+        if file_path:
+            self.IcoPathEdit.setText(file_path.replace("\\", "/"))
 
     def returr(self):
         self.list_data = []

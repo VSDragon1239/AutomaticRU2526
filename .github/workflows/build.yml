@@ -1,0 +1,68 @@
+name: Build EXE
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Generate spec file
+        run: |
+          python generate_spec.py project_dirs AutomaticRU2526 WorkUserInterfaceManager WorkProjectManager WorkMouseDesign WorkJSONFiles TemplateProject --main-script AutomaticRU2526/manage.py
+
+      - name: Build with PyInstaller
+        run: |
+          pyinstaller main.spec
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MyApp-Windows
+          path: dist/
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: MyApp-Windows
+          path: ./release-artifacts
+
+      - name: Create Pre-release (beta tag)
+        if: contains(github.ref, '-beta')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ./release-artifacts/**
+          generate_release_notes: true
+          prerelease: true
+
+      - name: Create Release (stable tag)
+        if: ${{ !contains(github.ref, '-beta') }}
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ./release-artifacts/**
+          generate_release_notes: true
+          prerelease: false
