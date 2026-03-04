@@ -5,14 +5,13 @@ from pathlib import Path
 
 
 def get_project_data_paths(project_dir, exclude_dirs=None, valid_extensions=None):
-    """Собирает файлы .py, .ui, .qrc из проекта для включения в datas."""
+    """Собирает файлы из проекта для включения в datas."""
     if exclude_dirs is None:
-        exclude_dirs = ['__pycache__', 'build', 'dist', 'venv', 'ui_compiled']
+        exclude_dirs = ['__pycache__', 'build', 'dist', 'venv', 'ui_compiled', '.git']
+    # Убрал '.py' из списка, чтобы PyInstaller сам упаковал их внутрь EXE правильно.
+    # Это решает проблемы с импортами. Оставьте только ресурсы (.ui, .qrc).
     if valid_extensions is None:
-        # Примечание: .py файлы обычно не нужно добавлять в datas,
-        # PyInstaller сам их находит и упаковывает.
-        # Если вы добавляете их принудительно, они будут лежать рядом с exe в открытом виде.
-        valid_extensions = ['.py', '.ui', '.qrc']
+        valid_extensions = ['.ui', '.qrc', '.json', '.png', '.ico']
 
     data_paths = []
     for root, dirs, files in os.walk(project_dir):
@@ -21,20 +20,24 @@ def get_project_data_paths(project_dir, exclude_dirs=None, valid_extensions=None
             ext = os.path.splitext(fn)[1].lower()
             if ext in valid_extensions:
                 abs_path = os.path.join(root, fn)
-
-                # --- ВАЖНОЕ ИСПРАВЛЕНИЕ ---
-                # Пропускаем пустые файлы (0 байт), чтобы избежать ошибки
-                # "size must be greater than or equal to 1" при создании Release.
                 if os.path.getsize(abs_path) == 0:
                     continue
 
+                # Важно: сохраняем структуру папок относительно КОРНЯ (project_dir)
                 rel_path = os.path.relpath(root, project_dir).replace("\\", "/")
                 data_paths.append((abs_path.replace("\\", "/"), rel_path))
     return data_paths
 
 
 def generate_spec(project_dirs=None, main_script="manage.py", onefile=False, output_file="main.spec"):
-    """Генерирует .spec файл для PyInstaller на основе списка директорий проектов."""
+    """Генерирует .spec файл для PyInstaller."""
+
+    # Получаем корневую директорию (там, где лежат папки проектов)
+    # Предполагаем, что project_dirs - это абсолютные пути к папкам с кодом
+    # Корень - это общая папка для всех проектов (на уровень выше)
+    # Но в вашем случае скрипт запускается из корня, поэтому base = os.getcwd()
+    base = os.getcwd()
+
     all_data = []
     if project_dirs:
         for proj in project_dirs:
@@ -46,12 +49,14 @@ def generate_spec(project_dirs=None, main_script="manage.py", onefile=False, out
     data_entries = ",\n        ".join(entries)
 
     main_script_clean = main_script.replace("\\", "/")
-    # Безопасное формирование списка путей
-    pathex_list = [p.replace("\\", "/") for p in project_dirs] if project_dirs else []
 
-    # ----------------------------------------------------------------
-    # РЕЖИМ ONEFILE (Один файл)
-    # ----------------------------------------------------------------
+    # --- КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ ---
+    # Добавляем в pathex КОРНЕВУЮ директорию (base).
+    # Это позволяет PyInstaller видеть пакеты AutomaticRU2526, WorkUserInterfaceManager и т.д.
+    pathex_list = [base.replace("\\", "/")]
+    # Также добавляем сами папки проектов для надежности
+    pathex_list.extend([p.replace("\\", "/") for p in project_dirs])
+
     if onefile:
         spec_content = f"""# -*- mode: python ; coding: utf-8 -*-
 import os
@@ -88,9 +93,6 @@ exe = EXE(
     console=False,
 )
 """
-    # ----------------------------------------------------------------
-    # РЕЖИМ ONEDIR (Папка с проектом) - Срабатывает, если onefile=False
-    # ----------------------------------------------------------------
     else:
         spec_content = f"""# -*- mode: python ; coding: utf-8 -*-
 import os
@@ -116,8 +118,8 @@ pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 exe = EXE(
     pyz,
     a.scripts,
-    [],       # Бинарники исключаем из EXE
-    exclude_binaries=True,  # Важно для режима папки
+    [],
+    exclude_binaries=True,
     name='MyApp',
     debug=False,
     bootloader_ignore_signals=False,
@@ -134,7 +136,7 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='MyApp',  # Имя папки в dist/
+    name='MyApp',
 )
 """
     with open(output_file, "w", encoding="utf-8") as f:
