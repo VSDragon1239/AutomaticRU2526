@@ -144,6 +144,8 @@ class MainInterfaceViewModelLinkData(MainInterfaceViewModel):
         Получение данных из проекта
         :return:
         """
+        self.logger.info(
+            f"[!!]  -  MainInterfaceViewModel  -  load_project_data  -  : Загрузка данных проекта...")
         self.iPM.get_project_data(projectID)
         widget = self.UiMainWindow.get_project_data_widget_list()
         widget.clear()
@@ -153,6 +155,8 @@ class MainInterfaceViewModelLinkData(MainInterfaceViewModel):
         gpp = self.iPM.currentProject
         list_data: list = system_tool_load("load_project", self.get_data_path("MainGlobalProjectsPath"), gp, gpp)
         self.UiMainWindow.set_items_to_widget_list(list_data, self.UiMainWindow.get_project_data_widget_list())
+        self.logger.info(
+            f"[✅]  -  MainInterfaceViewModel  -  load_project_data  -  : Данные успешно загружены! {list_data}")
 
     def _start_project(self):
         self.logger.info(

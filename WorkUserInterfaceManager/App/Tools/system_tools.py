@@ -43,18 +43,18 @@ def system_tool_load(type_tool, main_path, sub_path, sub_sub_path, item_data="")
     DSApplicationService = DirectoryService(str(main_path) + str(sub_path) + '/' + str(sub_sub_path), starry_dir=True)
     if type_tool == 'load_project':
         logging.info(
-            f"[!!] - system_tool_load - load_project - Условно -> list_files = {DSApplicationService.list_files()}")
+            f"[!!] - system_tool_load - load_project - Условно -> list_files = {DSApplicationService.list_files(relative=True)}")
         DSApplicationService.create_directory("DocData")
         DSApplicationService.create_directory("LearnData")
         DSApplicationService.create_directory("SourceData")
         DSApplicationService.create_directory("ResultData")
-        return [{'id': idx, 'name': item} for idx, item in enumerate(DSApplicationService.list_files() + DSApplicationService.get_directories())]
+        return [{'id': idx, 'name': item} for idx, item in enumerate(DSApplicationService.list_files(relative=True) + DSApplicationService.get_directories())]
     elif type_tool == 'start_project':
         logging.info(f"[!!] - system_tool_load - load_project - Условно -> start_project")
         DSApplicationService.openFolder("")
     elif type_tool == 'start_project_sub_dir':
-        logging.info(f"[!!] - system_tool_load - _start_project_sub_dir - Условно -> start_project_sub_dir {item_data}")
-        DSApplicationService.openFolder(f"{item_data}")
+        logging.info(f"[!!] - system_tool_load - _start_project_sub_dir - Условно -> start_project_sub_dir = '{item_data}'")
+        DSApplicationService.openFolder(f"{item_data.replace(' ', '')}")
     elif type_tool == 'start_application':
         logging.info(f"[!!] - system_tool_load - _start_application - Условно -> start_application {item_data}")
         DSApplicationService.open_full_path_file(f"{item_data}")

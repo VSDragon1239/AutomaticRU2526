@@ -201,3 +201,7 @@ One such project is **Starline Lab**, a separate Mindustry content mod, maintain
 
 *MGSD - when projects stop being folders and start becoming systems.*
 
+
+## Дополнения по использованию / типа Документация
+
+- Список файлов и директорий создаётся в `system_tools.py`

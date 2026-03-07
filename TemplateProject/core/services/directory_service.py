@@ -268,11 +268,17 @@ class DirectoryService:
         logging.info(f"[🏁] FileService - open_full_path_file - Успешное завершение: '{found_path}'")
         return found_path
 
-    def list_files(self, extension_filter: str | None = None, directory: str | None = None) -> list[str]:
+    def list_files(self, extension_filter: str | None = None, directory: str | None = None, relative: bool = False) -> \
+            list[str]:
         """
         Lists all files in the base directory (or in `directory` if задано),
         optionally filtering by file extension, и возвращает их в естественном
-        (numeric) порядке, чтобы "1", "2", ..., "10", "11" шли правильно.
+        (numeric) порядке.
+
+        :param extension_filter: Фильтр по расширению (например, '.docx').
+        :param directory: Директория для поиска (если None, используется self.base_directory).
+        :param relative: Если True, возвращает пути относительно self.base_directory.
+                         Если False, возвращает полные абсолютные пути.
         """
         root = directory or self.base_directory
         files: list[str] = []
@@ -280,10 +286,21 @@ class DirectoryService:
         for dirpath, _, filenames in os.walk(root):
             for fn in filenames:
                 if not extension_filter or fn.lower().endswith(extension_filter.lower()):
-                    files.append(os.path.join(dirpath, fn).replace("\\", "/"))
+                    # Формируем полный путь с прямыми слешами
+                    full_path = os.path.join(dirpath, fn).replace("\\", "/")
+
+                    if relative:
+                        # Превращаем полный путь в относительный относительно self.base_directory
+                        # os.path.relpath сам уберет лишнюю часть пути
+                        path_to_add = os.path.relpath(full_path, self.base_directory).replace("\\", "/")
+                    else:
+                        path_to_add = full_path
+
+                    files.append(path_to_add)
 
         # natural sort: разбиваем имя (без расширения) на текст и числа
         def natural_key(path: str):
+            # Берем только имя файла, даже если передан относительный путь ("DocData/file.docx" -> "file")
             name = os.path.splitext(os.path.basename(path))[0]
             parts = re.split(r'(\d+)', name)
             return [
@@ -348,11 +365,11 @@ class DirectoryService:
         shutil.move(source_file, target_directory)
 
     def copy_file(
-        self,
-        source_file: str,
-        target_directory: str,
-        source_mode: bool = False,
-        new_name: str | None = None
+            self,
+            source_file: str,
+            target_directory: str,
+            source_mode: bool = False,
+            new_name: str | None = None
     ) -> str:
         """
         Копирует файл в target_directory. Если указан new_name — переименовывает файл при копировании.
@@ -537,46 +554,94 @@ class DirectoryService:
             f"[📁] - DirectoryService - openFolder - Итоговая директория -> {folder_path}")
         logging.info(
             f"[📁] - DirectoryService - openFolder - Запуск сложного процесса COM и Shell")
+
         # 2) инициализируем COM и получаем интерфейс Shell
         try:
+            logging.debug("[⚙️] Попытка инициализации COM (CoInitialize)...")
             pythoncom.CoInitialize()
+            logging.debug("[✅] COM библиотека успешно инициализирована.")
+
+            logging.debug("[⚙️] Создание объекта Shell.Application...")
             shell = win32com.client.Dispatch("Shell.Application")
+            logging.debug("[✅] Объект Shell.Application успешно создан.")
         except Exception as e:
-            logging.error(f"[❌] Ошибка инициализации COM: {e}")
+            logging.error(f"[❌] Критическая ошибка инициализации COM: {e}")
             return
 
         # 3) пробуем найти уже открытое окно на эту папку
-        for win in shell.Windows():
+        target_path_norm = os.path.normcase(folder_path)
+        logging.info(f"[🔍] Поиск открытого окна для пути: '{folder_path}'")
+
+        windows = shell.Windows()
+        logging.debug(f"[🔍] Получен список окон проводника. Количество окон: {windows.Count}")
+
+        for i, win in enumerate(windows):
             try:
+                # Логируем попытку получить путь от окна
+                logging.debug(f"[🔍] Проверка окна #{i}. Попытка получить Path...")
                 path = win.Document.Folder.Self.Path
+                logging.debug(f"[🔍] Окно #{i}. Путь: '{path}'")
             except Exception:
+                # Часто бывает, что это вкладка браузера или спец. папка, это нормально
+                logging.debug(f"[⚠️] Окно #{i} не имеет свойства Folder.Path (пропуск)")
                 continue
-            if os.path.normcase(path) == os.path.normcase(folder_path):
+
+            if os.path.normcase(path) == target_path_norm:
                 hwnd = win.HWND
-                logging.info(f"[📁] Найдено открытое окно HWND: {hwnd}")
-                # разворачиваем и ставим на передний план
+                logging.info(f"[✅] Окно найдено! HWND: {hwnd}. Путь совпал: '{path}'")
+
+                # Разворачиваем и ставим на передний план
+                logging.debug(f"[🛠️] Восстановление окна (SW_RESTORE)...")
                 win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+
+                logging.debug(f"[🛠️] Разворачивание окна (SW_MAXIMIZE)...")
                 win32gui.ShowWindow(hwnd, win32con.SW_MAXIMIZE)
+
+                logging.debug(f"[🛠️] Активация окна (SetForegroundWindow)...")
                 win32gui.SetForegroundWindow(hwnd)
+
+                logging.info(f"[🏁] Окно успешно активировано. Завершение метода.")
                 return
 
         # 4) иначе открываем новую папку в том же процессе explorer.exe
+        logging.info(f"[📂] Открытое окно не найдено. Выполняется команда открытия новой папки: '{folder_path}'")
         shell.Open(folder_path)
+        logging.debug("[📂] Команда shell.Open отправлена.")
 
         # 5) ждём, пока окно появится, и снова ищем его среди Windows()
+        logging.debug("[⏳] Ожидание 0.5 сек для инициализации окна проводника...")
         time.sleep(0.5)
-        for win in shell.Windows():
+
+        logging.info("[🔍] Повторный поиск открытого окна после команды Open...")
+        found_new = False
+        for i, win in enumerate(shell.Windows()):
             try:
                 path = win.Document.Folder.Self.Path
+                logging.debug(f"[🔍] Проверка нового окна #{i}. Путь: '{path}'")
             except Exception as e:
-                logging.debug(f"[⚠️] Пропуск окна при проверке: {e}")
+                logging.debug(f"[⚠️] Пропуск окна #{i} при повторной проверке: {e}")
                 continue
-            if os.path.normcase(path) == os.path.normcase(folder_path):
+
+            if os.path.normcase(path) == target_path_norm:
                 hwnd = win.HWND
+                logging.info(f"[✅] Новое окно обнаружено! HWND: {hwnd}.")
+
+                logging.debug(f"[🛠️] Восстановление окна (SW_RESTORE)...")
                 win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+
+                logging.debug(f"[🛠️] Разворачивание окна (SW_MAXIMIZE)...")
                 win32gui.ShowWindow(hwnd, win32con.SW_MAXIMIZE)
+
+                logging.debug(f"[🛠️] Активация окна (SetForegroundWindow)...")
                 win32gui.SetForegroundWindow(hwnd)
+
+                found_new = True
+                logging.info(f"[🏁] Новое окно успешно активировано.")
                 break
+
+        if not found_new:
+            logging.warning(
+                f"[⚠️] Не удалось найти и активировать новое окно после открытия (таймаут или ошибка рендеринга).")
+
         logging.info(
             f"[✅📁] - DirectoryService - openFolder - Успешное завершение сложного процесса COM и Shell")
-
