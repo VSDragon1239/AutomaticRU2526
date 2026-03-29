@@ -10,12 +10,18 @@ import zipfile
 import os
 from pathlib import Path
 
-# pip install pywin32
-import win32con
-import win32gui
-from win32comext.shell import shell
-import pythoncom
-import win32com.client
+if sys.platform == "win32":
+    try:
+        import win32con
+        import win32gui
+        import pythoncom
+        import win32com.client
+        from win32comext.shell import shell
+        HAS_WIN32 = True
+    except ImportError:
+        HAS_WIN32 = False
+else:
+    HAS_WIN32 = False
 
 
 class DirectoryService:
@@ -63,23 +69,29 @@ class DirectoryService:
                 logging.info(f"[🔗] FileService - open_file - Обработка ярлыка: '{exe_path}'")
 
                 try:
-                    pythoncom.CoInitialize()
-                    logging.debug("[🔌] FileService - open_file - CoInitialize() выполнен")
+                    if HAS_WIN32:
+                        # Код, специфичный для Windows (например, работа с реестром или окнами)
+                        # win32gui.GetForegroundWindow()
+                        pythoncom.CoInitialize()
+                        logging.debug("[🔌] FileService - open_file - CoInitialize() выполнен")
 
-                    shell_link = pythoncom.CoCreateInstance(
-                        shell.CLSID_ShellLink, None,
-                        pythoncom.CLSCTX_INPROC_SERVER, shell.IID_IShellLink
-                    )
-                    logging.debug("[🔗] FileService - open_file - ShellLink создан")
+                        shell_link = pythoncom.CoCreateInstance(
+                            shell.CLSID_ShellLink, None,
+                            pythoncom.CLSCTX_INPROC_SERVER, shell.IID_IShellLink
+                        )
+                        logging.debug("[🔗] FileService - open_file - ShellLink создан")
 
-                    persist_file = shell_link.QueryInterface(pythoncom.IID_IPersistFile)
-                    logging.debug("[📁] FileService - open_file - IID_IPersistFile получен")
+                        persist_file = shell_link.QueryInterface(pythoncom.IID_IPersistFile)
+                        logging.debug("[📁] FileService - open_file - IID_IPersistFile получен")
 
-                    persist_file.Load(str(Path(exe_path)), 0)
-                    logging.debug(f"[📥] FileService - open_file - Ярлык загружен: '{exe_path}'")
+                        persist_file.Load(str(Path(exe_path)), 0)
+                        logging.debug(f"[📥] FileService - open_file - Ярлык загружен: '{exe_path}'")
 
-                    target_path, _ = shell_link.GetPath(shell.SLGP_UNCPRIORITY)
-                    logging.info(f"[🎯] FileService - open_file - Цель ярлыка: '{target_path}'")
+                        target_path, _ = shell_link.GetPath(shell.SLGP_UNCPRIORITY)
+                        logging.info(f"[🎯] FileService - open_file - Цель ярлыка: '{target_path}'")
+                    else:
+                        # Альтернативная логика для Linux/Docker или просто пропуск
+                        print("Функции Windows недоступны в этой системе")
 
                 except Exception as e:
                     logging.error(f"[❌] FileService - open_file - Ошибка при чтении ярлыка: {type(e).__name__}: {e}")
@@ -199,60 +211,67 @@ class DirectoryService:
         logging.info(f"[📄] FileService - open_full_path_file - Итоговый путь: '{found_path}'")
 
         try:
-            # 4) Обработка ярлыков (.lnk)
-            if found_path.lower().endswith(".lnk"):
-                logging.info(f"[🔗] FileService - open_full_path_file - Обработка ярлыка: '{found_path}'")
+            if HAS_WIN32:
+                # Код, специфичный для Windows (например, работа с реестром или окнами)
+                # win32gui.GetForegroundWindow()
+                # 4) Обработка ярлыков (.lnk)
+                if found_path.lower().endswith(".lnk"):
+                    logging.info(f"[🔗] FileService - open_full_path_file - Обработка ярлыка: '{found_path}'")
 
-                try:
-                    pythoncom.CoInitialize()
-                    shell_link = pythoncom.CoCreateInstance(
-                        shell.CLSID_ShellLink, None,
-                        pythoncom.CLSCTX_INPROC_SERVER, shell.IID_IShellLink
-                    )
-                    persist_file = shell_link.QueryInterface(pythoncom.IID_IPersistFile)
-                    persist_file.Load(str(Path(found_path)), 0)
-                    target_path, _ = shell_link.GetPath(shell.SLGP_UNCPRIORITY)
-                    logging.info(f"[🎯] FileService - open_full_path_file - Цель ярлыка: '{target_path}'")
-                except Exception as e:
-                    logging.error(
-                        f"[❌] FileService - open_full_path_file - Ошибка чтения ярлыка: {type(e).__name__}: {e}")
-                    raise
+                    try:
+                        pythoncom.CoInitialize()
+                        shell_link = pythoncom.CoCreateInstance(
+                            shell.CLSID_ShellLink, None,
+                            pythoncom.CLSCTX_INPROC_SERVER, shell.IID_IShellLink
+                        )
+                        persist_file = shell_link.QueryInterface(pythoncom.IID_IPersistFile)
+                        persist_file.Load(str(Path(found_path)), 0)
+                        target_path, _ = shell_link.GetPath(shell.SLGP_UNCPRIORITY)
+                        logging.info(f"[🎯] FileService - open_full_path_file - Цель ярлыка: '{target_path}'")
+                    except Exception as e:
+                        logging.error(
+                            f"[❌] FileService - open_full_path_file - Ошибка чтения ярлыка: {type(e).__name__}: {e}")
+                        raise
 
-                # 5) Проверка и исправление пути ярлыка (смена диска)
-                if not os.path.isfile(target_path):
-                    logging.warning(f"[⚠️] FileService - open_full_path_file - Цель ярлыка не найдена: '{target_path}'")
+                    # 5) Проверка и исправление пути ярлыка (смена диска)
+                    if not os.path.isfile(target_path):
+                        logging.warning(
+                            f"[⚠️] FileService - open_full_path_file - Цель ярлыка не найдена: '{target_path}'")
 
-                    old_drive = target_path[:2]
-                    new_drive = os.path.splitdrive(found_path)[0]
-                    logging.debug(
-                        f"[🔄] FileService - open_full_path_file - Попытка замены диска: '{old_drive}' → '{new_drive}'")
+                        old_drive = target_path[:2]
+                        new_drive = os.path.splitdrive(found_path)[0]
+                        logging.debug(
+                            f"[🔄] FileService - open_full_path_file - Попытка замены диска: '{old_drive}' → '{new_drive}'")
 
-                    if old_drive.upper() != new_drive.upper():
-                        fixed_target = target_path.replace(old_drive, new_drive, 1)
-                        if os.path.isfile(fixed_target):
-                            logging.info(
-                                f"[✅] FileService - open_full_path_file - Путь исправлен: '{target_path}' → '{fixed_target}'")
-                            target_path = fixed_target
-                        else:
-                            logging.error(
-                                f"[❌] FileService - open_full_path_file - Исправленный путь не найден: '{fixed_target}'")
+                        if old_drive.upper() != new_drive.upper():
+                            fixed_target = target_path.replace(old_drive, new_drive, 1)
+                            if os.path.isfile(fixed_target):
+                                logging.info(
+                                    f"[✅] FileService - open_full_path_file - Путь исправлен: '{target_path}' → '{fixed_target}'")
+                                target_path = fixed_target
+                            else:
+                                logging.error(
+                                    f"[❌] FileService - open_full_path_file - Исправленный путь не найден: '{fixed_target}'")
 
-                if not os.path.isfile(target_path):
-                    logging.error(
-                        f"[❌] FileService - open_full_path_file - Целевой файл ярлыка не найден: '{target_path}'")
-                    raise FileNotFoundError(f"Target from shortcut not found: {target_path}")
+                    if not os.path.isfile(target_path):
+                        logging.error(
+                            f"[❌] FileService - open_full_path_file - Целевой файл ярлыка не найден: '{target_path}'")
+                        raise FileNotFoundError(f"Target from shortcut not found: {target_path}")
 
-                # 6) Запуск целевого файла
-                cwd = os.path.dirname(target_path)
-                logging.info(f"[🚀] FileService - open_full_path_file - Запуск: '{target_path}', cwd='{cwd}'")
-                proc = subprocess.Popen([target_path], cwd=cwd)
-                logging.info(f"[✅] FileService - open_full_path_file - Процесс запущен, PID={proc.pid}")
+                    # 6) Запуск целевого файла
+                    cwd = os.path.dirname(target_path)
+                    logging.info(f"[🚀] FileService - open_full_path_file - Запуск: '{target_path}', cwd='{cwd}'")
+                    proc = subprocess.Popen([target_path], cwd=cwd)
+                    logging.info(f"[✅] FileService - open_full_path_file - Процесс запущен, PID={proc.pid}")
 
+                else:
+                    # 7) Запуск обычного exe
+                    logging.info(f"[🚀] FileService - open_full_path_file - Запуск через os.startfile: '{found_path}'")
+                    os.startfile(found_path)
+                    logging.info(f"[✅] FileService - open_full_path_file - os.startfile выполнен")
             else:
-                # 7) Запуск обычного exe
-                logging.info(f"[🚀] FileService - open_full_path_file - Запуск через os.startfile: '{found_path}'")
-                os.startfile(found_path)
-                logging.info(f"[✅] FileService - open_full_path_file - os.startfile выполнен")
+                # Альтернативная логика для Linux/Docker или просто пропуск
+                print("Функции Windows недоступны в этой системе")
 
         except OSError as e:
             winerror = getattr(e, 'winerror', 0)
@@ -464,24 +483,29 @@ class DirectoryService:
         if not os.path.isfile(icon):
             # можно просто проигнорировать, если нет
             icon = exe_path
+        if HAS_WIN32:
+            # Код, специфичный для Windows (например, работа с реестром или окнами)
+            # win32gui.GetForegroundWindow()
+            # --- создание ярлыка через COM ---
+            pythoncom.CoInitialize()
+            shell_link = pythoncom.CoCreateInstance(
+                shell.CLSID_ShellLink, None,
+                pythoncom.CLSCTX_INPROC_SERVER, shell.IID_IShellLink
+            )
+            shell_link.SetPath(exe_path)
+            shell_link.SetDescription(f"Shortcut to {exe_name}")
+            if arguments:
+                shell_link.SetArguments(arguments)
+            shell_link.SetWorkingDirectory(work_dir)
+            shell_link.SetIconLocation(icon, 0)
 
-        # --- создание ярлыка через COM ---
-        pythoncom.CoInitialize()
-        shell_link = pythoncom.CoCreateInstance(
-            shell.CLSID_ShellLink, None,
-            pythoncom.CLSCTX_INPROC_SERVER, shell.IID_IShellLink
-        )
-        shell_link.SetPath(exe_path)
-        shell_link.SetDescription(f"Shortcut to {exe_name}")
-        if arguments:
-            shell_link.SetArguments(arguments)
-        shell_link.SetWorkingDirectory(work_dir)
-        shell_link.SetIconLocation(icon, 0)
-
-        # Query IPersistFile to save the .lnk file
-        persist_file = shell_link.QueryInterface(pythoncom.IID_IPersistFile)
-        # Need Unicode for Windows
-        persist_file.Save(str(Path(link_path)), 0)
+            # Query IPersistFile to save the .lnk file
+            persist_file = shell_link.QueryInterface(pythoncom.IID_IPersistFile)
+            # Need Unicode for Windows
+            persist_file.Save(str(Path(link_path)), 0)
+        else:
+            # Альтернативная логика для Linux/Docker или просто пропуск
+            print("Функции Windows недоступны в этой системе")
 
         return link_path
 
@@ -557,91 +581,107 @@ class DirectoryService:
 
         # 2) инициализируем COM и получаем интерфейс Shell
         try:
-            logging.debug("[⚙️] Попытка инициализации COM (CoInitialize)...")
-            pythoncom.CoInitialize()
-            logging.debug("[✅] COM библиотека успешно инициализирована.")
+            if HAS_WIN32:
+                # Код, специфичный для Windows (например, работа с реестром или окнами)
+                # win32gui.GetForegroundWindow()
+                logging.debug("[⚙️] Попытка инициализации COM (CoInitialize)...")
+                pythoncom.CoInitialize()
+                logging.debug("[✅] COM библиотека успешно инициализирована.")
 
-            logging.debug("[⚙️] Создание объекта Shell.Application...")
-            shell = win32com.client.Dispatch("Shell.Application")
-            logging.debug("[✅] Объект Shell.Application успешно создан.")
+                logging.debug("[⚙️] Создание объекта Shell.Application...")
+                shell = win32com.client.Dispatch("Shell.Application")
+                logging.debug("[✅] Объект Shell.Application успешно создан.")
+            else:
+                # Альтернативная логика для Linux/Docker или просто пропуск
+                print("Функции Windows недоступны в этой системе")
         except Exception as e:
             logging.error(f"[❌] Критическая ошибка инициализации COM: {e}")
             return
 
-        # 3) пробуем найти уже открытое окно на эту папку
-        target_path_norm = os.path.normcase(folder_path)
-        logging.info(f"[🔍] Поиск открытого окна для пути: '{folder_path}'")
+        if HAS_WIN32:
+            # Код, специфичный для Windows (например, работа с реестром или окнами)
+            # win32gui.GetForegroundWindow()
+            # 3) пробуем найти уже открытое окно на эту папку
+            target_path_norm = os.path.normcase(folder_path)
+            logging.info(f"[🔍] Поиск открытого окна для пути: '{folder_path}'")
 
-        windows = shell.Windows()
-        logging.debug(f"[🔍] Получен список окон проводника. Количество окон: {windows.Count}")
+            windows = shell.Windows()
+            logging.debug(f"[🔍] Получен список окон проводника. Количество окон: {windows.Count}")
 
-        for i, win in enumerate(windows):
-            try:
-                # Логируем попытку получить путь от окна
-                logging.debug(f"[🔍] Проверка окна #{i}. Попытка получить Path...")
-                path = win.Document.Folder.Self.Path
-                logging.debug(f"[🔍] Окно #{i}. Путь: '{path}'")
-            except Exception:
-                # Часто бывает, что это вкладка браузера или спец. папка, это нормально
-                logging.debug(f"[⚠️] Окно #{i} не имеет свойства Folder.Path (пропуск)")
-                continue
+            for i, win in enumerate(windows):
+                try:
+                    # Логируем попытку получить путь от окна
+                    logging.debug(f"[🔍] Проверка окна #{i}. Попытка получить Path...")
+                    path = win.Document.Folder.Self.Path
+                    logging.debug(f"[🔍] Окно #{i}. Путь: '{path}'")
+                except Exception:
+                    # Часто бывает, что это вкладка браузера или спец. папка, это нормально
+                    logging.debug(f"[⚠️] Окно #{i} не имеет свойства Folder.Path (пропуск)")
+                    continue
 
-            if os.path.normcase(path) == target_path_norm:
-                hwnd = win.HWND
-                logging.info(f"[✅] Окно найдено! HWND: {hwnd}. Путь совпал: '{path}'")
+                if os.path.normcase(path) == target_path_norm:
+                    hwnd = win.HWND
+                    logging.info(f"[✅] Окно найдено! HWND: {hwnd}. Путь совпал: '{path}'")
 
-                # Разворачиваем и ставим на передний план
-                logging.debug(f"[🛠️] Восстановление окна (SW_RESTORE)...")
-                win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+                    # Разворачиваем и ставим на передний план
+                    logging.debug(f"[🛠️] Восстановление окна (SW_RESTORE)...")
+                    win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
 
-                logging.debug(f"[🛠️] Разворачивание окна (SW_MAXIMIZE)...")
-                win32gui.ShowWindow(hwnd, win32con.SW_MAXIMIZE)
+                    logging.debug(f"[🛠️] Разворачивание окна (SW_MAXIMIZE)...")
+                    win32gui.ShowWindow(hwnd, win32con.SW_MAXIMIZE)
 
-                logging.debug(f"[🛠️] Активация окна (SetForegroundWindow)...")
-                win32gui.SetForegroundWindow(hwnd)
+                    logging.debug(f"[🛠️] Активация окна (SetForegroundWindow)...")
+                    win32gui.SetForegroundWindow(hwnd)
 
-                logging.info(f"[🏁] Окно успешно активировано. Завершение метода.")
-                return
+                    logging.info(f"[🏁] Окно успешно активировано. Завершение метода.")
+                    return
+        else:
+            # Альтернативная логика для Linux/Docker или просто пропуск
+            print("Функции Windows недоступны в этой системе")
+        if HAS_WIN32:
+            # Код, специфичный для Windows (например, работа с реестром или окнами)
+            # win32gui.GetForegroundWindow()
+            # 4) иначе открываем новую папку в том же процессе explorer.exe
+            logging.info(f"[📂] Открытое окно не найдено. Выполняется команда открытия новой папки: '{folder_path}'")
+            shell.Open(folder_path)
+            logging.debug("[📂] Команда shell.Open отправлена.")
 
-        # 4) иначе открываем новую папку в том же процессе explorer.exe
-        logging.info(f"[📂] Открытое окно не найдено. Выполняется команда открытия новой папки: '{folder_path}'")
-        shell.Open(folder_path)
-        logging.debug("[📂] Команда shell.Open отправлена.")
+            # 5) ждём, пока окно появится, и снова ищем его среди Windows()
+            logging.debug("[⏳] Ожидание 0.5 сек для инициализации окна проводника...")
+            time.sleep(0.5)
 
-        # 5) ждём, пока окно появится, и снова ищем его среди Windows()
-        logging.debug("[⏳] Ожидание 0.5 сек для инициализации окна проводника...")
-        time.sleep(0.5)
+            logging.info("[🔍] Повторный поиск открытого окна после команды Open...")
+            found_new = False
+            for i, win in enumerate(shell.Windows()):
+                try:
+                    path = win.Document.Folder.Self.Path
+                    logging.debug(f"[🔍] Проверка нового окна #{i}. Путь: '{path}'")
+                except Exception as e:
+                    logging.debug(f"[⚠️] Пропуск окна #{i} при повторной проверке: {e}")
+                    continue
 
-        logging.info("[🔍] Повторный поиск открытого окна после команды Open...")
-        found_new = False
-        for i, win in enumerate(shell.Windows()):
-            try:
-                path = win.Document.Folder.Self.Path
-                logging.debug(f"[🔍] Проверка нового окна #{i}. Путь: '{path}'")
-            except Exception as e:
-                logging.debug(f"[⚠️] Пропуск окна #{i} при повторной проверке: {e}")
-                continue
+                if os.path.normcase(path) == target_path_norm:
+                    hwnd = win.HWND
+                    logging.info(f"[✅] Новое окно обнаружено! HWND: {hwnd}.")
 
-            if os.path.normcase(path) == target_path_norm:
-                hwnd = win.HWND
-                logging.info(f"[✅] Новое окно обнаружено! HWND: {hwnd}.")
+                    logging.debug(f"[🛠️] Восстановление окна (SW_RESTORE)...")
+                    win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
 
-                logging.debug(f"[🛠️] Восстановление окна (SW_RESTORE)...")
-                win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+                    logging.debug(f"[🛠️] Разворачивание окна (SW_MAXIMIZE)...")
+                    win32gui.ShowWindow(hwnd, win32con.SW_MAXIMIZE)
 
-                logging.debug(f"[🛠️] Разворачивание окна (SW_MAXIMIZE)...")
-                win32gui.ShowWindow(hwnd, win32con.SW_MAXIMIZE)
+                    logging.debug(f"[🛠️] Активация окна (SetForegroundWindow)...")
+                    win32gui.SetForegroundWindow(hwnd)
 
-                logging.debug(f"[🛠️] Активация окна (SetForegroundWindow)...")
-                win32gui.SetForegroundWindow(hwnd)
+                    found_new = True
+                    logging.info(f"[🏁] Новое окно успешно активировано.")
+                    break
+                if not found_new:
+                    logging.warning(
+                        f"[⚠️] Не удалось найти и активировать новое окно после открытия (таймаут или ошибка рендеринга).")
 
-                found_new = True
-                logging.info(f"[🏁] Новое окно успешно активировано.")
-                break
-
-        if not found_new:
-            logging.warning(
-                f"[⚠️] Не удалось найти и активировать новое окно после открытия (таймаут или ошибка рендеринга).")
-
-        logging.info(
-            f"[✅📁] - DirectoryService - openFolder - Успешное завершение сложного процесса COM и Shell")
+            logging.info(
+                f"[✅📁] - DirectoryService - openFolder - Успешное завершение сложного процесса COM и Shell")
+        else:
+            # Альтернативная логика для Linux/Docker или просто пропуск
+            print("Функции Windows недоступны в этой системе")
