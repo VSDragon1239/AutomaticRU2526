@@ -20,10 +20,18 @@ from PySide6.QtGui import QImage, QPixmap, QResizeEvent
 
 import ctypes
 from ctypes import wintypes
-import win32gui
-import win32con
-import win32process
-import win32api
+
+if sys.platform == "win32":
+    try:
+        import win32gui
+        import win32con
+        import win32process
+        import win32api
+        HAS_WIN32 = True
+    except ImportError:
+        HAS_WIN32 = False
+else:
+    HAS_WIN32 = False
 
 
 # ============================================================================

@@ -7,10 +7,19 @@ import subprocess
 import time
 import ctypes
 from ctypes import wintypes
-import win32gui
-import win32con
-import win32process
-import win32ui
+if sys.platform == "win32":
+    try:
+        import win32gui
+        import win32con
+        import win32process
+        import win32api
+        import win32com.client
+        from win32comext.shell import shell
+        HAS_WIN32 = True
+    except ImportError:
+        HAS_WIN32 = False
+else:
+    HAS_WIN32 = False
 from PIL import ImageGrab
 # from PyInstaller.compat import win32api
 

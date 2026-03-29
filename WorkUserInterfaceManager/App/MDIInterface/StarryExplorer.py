@@ -17,10 +17,21 @@ from PySide6.QtGui import QPainter, QImage, QPixmap, QResizeEvent
 
 import ctypes
 from ctypes import wintypes
-import win32gui
-import win32con
-import win32process
-import win32api
+
+if sys.platform == "win32":
+    try:
+        import win32gui
+        import win32con
+        import win32process
+        import win32api
+        import win32com.client
+        from win32comext.shell import shell
+        HAS_WIN32 = True
+    except ImportError:
+        HAS_WIN32 = False
+else:
+    HAS_WIN32 = False
+
 
 # Константы DWM API (из dwmapi.h)
 DWM_TNP_RECTDESTINATION = 0x00000001
