@@ -500,22 +500,30 @@ class CursorPetOverlay(QWidget):
     def _enable_click_through(self):
         if self._click_through_enabled:
             return
+        if sys.platform == "win32":
+            try:
+                hwnd = int(self.winId())
 
-        hwnd = int(self.winId())
+                GWL_EXSTYLE = -20
+                WS_EX_LAYERED = 0x00080000
+                WS_EX_TRANSPARENT = 0x00000020
 
-        GWL_EXSTYLE = -20
-        WS_EX_LAYERED = 0x00080000
-        WS_EX_TRANSPARENT = 0x00000020
+                user32 = ctypes.windll.user32
+                get_window_long = user32.GetWindowLongW
+                set_window_long = user32.SetWindowLongW
 
-        user32 = ctypes.windll.user32
-        get_window_long = user32.GetWindowLongW
-        set_window_long = user32.SetWindowLongW
+                ex_style = get_window_long(hwnd, GWL_EXSTYLE)
+                ex_style |= WS_EX_LAYERED | WS_EX_TRANSPARENT
+                set_window_long(hwnd, GWL_EXSTYLE, ex_style)
 
-        ex_style = get_window_long(hwnd, GWL_EXSTYLE)
-        ex_style |= WS_EX_LAYERED | WS_EX_TRANSPARENT
-        set_window_long(hwnd, GWL_EXSTYLE, ex_style)
-
-        self._click_through_enabled = True
+                self._click_through_enabled = True
+            except Exception as e:
+                print(f"WinAPI Error: {e}")
+        else:
+            # Логика для Linux (X11 / Webtop)
+            # В Linux/X11 сквозной клик делается через атрибуты окна Qt:
+            from PySide6.QtCore import Qt
+            self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
 
     def showEvent(self, event):
         super().showEvent(event)
